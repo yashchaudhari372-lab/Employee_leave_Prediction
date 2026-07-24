@@ -1,598 +1,581 @@
 import os
 import pickle
 import numpy as np
+import pandas as pd
 from flask import Flask, render_template_string, request, jsonify
 
 app = Flask(__name__)
 
-# Load the trained Scikit-learn Logistic Regression model
-MODEL_PATH = "model_.pkl"
-model = None
+# Model loading logic
+MODEL_PATH = "model.pkl"
 
-if os.path.exists(MODEL_PATH):
-    try:
+def load_model():
+    if os.path.exists(MODEL_PATH):
         with open(MODEL_PATH, "rb") as f:
-            model = pickle.load(f)
-    except Exception as e:
-        print(f"Error loading model: {e}")
-else:
-    print(f"Warning: '{MODEL_PATH}' not found. Please ensure the model file exists.")
+            return pickle.load(f)
+    return None
 
-# Inline Single Page Application HTML, CSS, and JavaScript
+model = load_model()
+
+# Embedded Single-Page Dashboard Template
 HTML_TEMPLATE = """
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Employee Retention Predictor</title>
-    <!-- Font Awesome CDN -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>AI Prediction & Analytics Dashboard</title>
     
+    <!-- Google Fonts & FontAwesome -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <style>
         :root {
-            --bg-gradient-start: #0f172a;
-            --bg-gradient-end: #2e1065;
-            --primary-accent: #8b5cf6;
-            --primary-accent-hover: #7c3aed;
-            --card-bg: rgba(255, 255, 255, 0.05);
-            --card-border: rgba(255, 255, 255, 0.12);
-            --input-bg: rgba(15, 23, 42, 0.6);
-            --input-border: rgba(255, 255, 255, 0.15);
+            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+            --panel-bg: rgba(30, 41, 59, 0.7);
+            --panel-border: rgba(255, 255, 255, 0.1);
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
-            --danger: #ef4444;
-            --danger-bg: rgba(239, 68, 68, 0.15);
-            --danger-border: rgba(239, 68, 68, 0.4);
-            --success: #10b981;
-            --success-bg: rgba(16, 185, 129, 0.15);
-            --success-border: rgba(16, 185, 129, 0.4);
+            --input-bg: rgba(15, 23, 42, 0.6);
+            --input-border: rgba(255, 255, 255, 0.15);
+            --accent-glow: rgba(99, 102, 241, 0.35);
+            --card-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+            --badge-bg: rgba(99, 102, 241, 0.2);
+            --chart-grid: rgba(255, 255, 255, 0.05);
+        }
+
+        [data-theme="light"] {
+            --bg-gradient: linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 50%, #f3e8ff 100%);
+            --panel-bg: rgba(255, 255, 255, 0.85);
+            --panel-border: rgba(0, 0, 0, 0.08);
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --input-bg: rgba(255, 255, 255, 0.9);
+            --input-border: rgba(0, 0, 0, 0.12);
+            --accent-glow: rgba(99, 102, 241, 0.15);
+            --card-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+            --badge-bg: rgba(99, 102, 241, 0.1);
+            --chart-grid: rgba(0, 0, 0, 0.05);
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+            font-family: 'Plus Jakarta Sans', sans-serif;
         }
 
         body {
-            background: linear-gradient(-45deg, #0f172a, #1e1b4b, #311042, #2e1065);
-            background-size: 400% 400%;
-            animation: gradientBG 15s ease infinite;
+            background: var(--bg-gradient);
+            background-attachment: fixed;
             color: var(--text-main);
             min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            padding: 2rem;
+            overflow-x: hidden;
         }
 
-        @keyframes gradientBG {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+        /* Glassmorphism Containers */
+        .glass-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--panel-border);
+            border-radius: 24px;
+            box-shadow: var(--card-shadow);
         }
 
-        /* Top Navigation Bar */
-        .navbar {
-            width: 100%;
-            padding: 1.25rem 2rem;
-            background: rgba(15, 23, 42, 0.7);
-            backdrop-filter: blur(12px);
-            border-bottom: 1px solid var(--card-border);
+        /* Animated Header */
+        header {
             display: flex;
-            align-items: center;
             justify-content: space-between;
-            position: sticky;
-            top: 0;
-            z-index: 100;
+            align-items: center;
+            padding: 1.5rem 2rem;
+            margin-bottom: 2rem;
+            animation: slideDown 0.8s ease-out;
         }
 
-        .navbar-brand {
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .brand-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: white;
+            box-shadow: 0 0 20px var(--accent-glow);
+            animation: pulseGlow 3s infinite alternate;
+        }
+
+        .brand-text h1 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(90deg, #818cf8, #c084fc, #f472b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .brand-text p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            color: var(--text-main);
+            padding: 0.6rem 1.2rem;
+            border-radius: 50px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .theme-toggle:hover {
+            transform: translateY(-2px);
+        }
+
+        /* Main Grid Layout */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        @media (max-width: 1024px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .section-header {
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            font-size: 1.25rem;
+            margin-bottom: 1.5rem;
+            font-size: 1.2rem;
             font-weight: 700;
-            letter-spacing: -0.025em;
         }
 
-        .navbar-brand i {
-            color: var(--primary-accent);
-            font-size: 1.5rem;
-        }
-
-        .navbar-subtitle {
-            font-size: 0.875rem;
-            color: var(--text-muted);
-            font-weight: 400;
-        }
-
-        /* Container Layout */
-        .main-container {
-            width: 100%;
-            max-width: 900px;
-            padding: 2.5rem 1rem;
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 2rem;
-            animation: fadeIn 0.8s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Glassmorphism Card */
-        .glass-card {
-            background: var(--card-bg);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid var(--card-border);
-            border-radius: 1.25rem;
-            padding: 2.5rem;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-            animation: float 6s ease-in-out infinite;
-        }
-
-        /* Form Grid */
-        .form-grid {
+        /* Colorful Parameter Grid */
+        .param-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-            gap: 1.5rem;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.25rem;
         }
 
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
+        .input-group {
+            position: relative;
+            padding: 1rem;
+            border-radius: 16px;
+            border: 1px solid var(--panel-border);
+            background: rgba(255, 255, 255, 0.02);
+            transition: all 0.3s ease;
         }
 
-        .form-group label {
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: #cbd5e1;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
+        .input-group:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.2);
         }
 
-        .form-group label i {
-            color: var(--primary-accent);
-            width: 16px;
+        /* Color accents for parameters */
+        .input-group:nth-child(1) { border-left: 4px solid #3b82f6; }
+        .input-group:nth-child(2) { border-left: 4px solid #10b981; }
+        .input-group:nth-child(3) { border-left: 4px solid #f59e0b; }
+        .input-group:nth-child(4) { border-left: 4px solid #ec4899; }
+        .input-group:nth-child(5) { border-left: 4px solid #8b5cf6; }
+        .input-group:nth-child(6) { border-left: 4px solid #06b6d4; }
+        .input-group:nth-child(7) { border-left: 4px solid #84cc16; }
+        .input-group:nth-child(8) { border-left: 4px solid #f97316; }
+
+        .input-group label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
         }
 
-        .input-control {
+        .input-group input, .input-group select {
             width: 100%;
             padding: 0.75rem 1rem;
             background: var(--input-bg);
             border: 1px solid var(--input-border);
-            border-radius: 0.5rem;
+            border-radius: 10px;
             color: var(--text-main);
             font-size: 0.95rem;
             outline: none;
-            transition: all 0.3s ease;
         }
 
-        .input-control:focus {
-            border-color: var(--primary-accent);
-            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.25);
-        }
-
-        select.input-control option {
-            background-color: #0f172a;
-            color: var(--text-main);
-        }
-
-        /* Validation Error Container */
-        .error-banner {
-            display: none;
-            background: var(--danger-bg);
-            border: 1px solid var(--danger-border);
-            color: #fca5a5;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-bottom: 1.5rem;
-            font-size: 0.875rem;
-        }
-
-        .error-banner ul {
-            margin-left: 1.25rem;
+        .input-group input:focus, .input-group select:focus {
+            border-color: #818cf8;
+            box-shadow: 0 0 0 3px var(--accent-glow);
         }
 
         /* Submit Button */
-        .submit-btn {
-            width: 100%;
-            margin-top: 2rem;
+        .btn-submit {
+            grid-column: span 2;
+            margin-top: 1rem;
             padding: 1rem;
-            background: linear-gradient(135deg, var(--primary-accent), var(--primary-accent-hover));
             border: none;
-            border-radius: 0.5rem;
-            color: #ffffff;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            color: white;
+            font-weight: 700;
             font-size: 1rem;
-            font-weight: 600;
             cursor: pointer;
+            box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.5);
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 0.75rem;
+            gap: 0.5rem;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
-            animation: pulse 2s infinite;
         }
 
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4); }
-            70% { box-shadow: 0 0 0 12px rgba(139, 92, 246, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); }
-        }
-
-        .submit-btn:hover {
+        .btn-submit:hover {
+            opacity: 0.95;
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.6);
+            box-shadow: 0 15px 25px -5px rgba(99, 102, 241, 0.6);
         }
 
-        /* Loading Spinner */
-        .spinner {
-            display: none;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: #ffffff;
-            animation: spin 0.8s ease-in-out infinite;
+        /* Analytics Panel */
+        .analytics-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
         }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* Result Section */
-        .result-card {
-            display: none;
+        .prediction-badge {
             text-align: center;
-            padding: 2rem;
-            border-radius: 1rem;
-            border: 1px solid transparent;
-            animation: slideUp 0.5s ease-out;
-            margin-top: 1rem;
+            padding: 1.5rem;
+            border-radius: 16px;
+            background: var(--badge-bg);
+            border: 1px dashed var(--panel-border);
+            animation: fadeIn 0.5s ease-in;
         }
 
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(15px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .result-card.stay {
-            background: var(--success-bg);
-            border-color: var(--success-border);
-            color: #6ee7b7;
-        }
-
-        .result-card.leave {
-            background: var(--danger-bg);
-            border-color: var(--danger-border);
-            color: #fca5a5;
-        }
-
-        .result-title {
-            font-size: 1.5rem;
-            font-weight: 700;
+        .prediction-badge h2 {
+            font-size: 2.2rem;
+            font-weight: 800;
             margin-top: 0.5rem;
         }
 
-        .result-icon {
-            font-size: 2.5rem;
-            margin-bottom: 0.5rem;
-        }
-
-        /* Footer */
-        footer {
-            margin-top: auto;
+        .chart-card {
+            position: relative;
             padding: 1.5rem;
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            text-align: center;
+            border-radius: 16px;
+            background: rgba(0, 0, 0, 0.1);
+            height: 320px;
         }
 
-        @media (max-width: 640px) {
-            .navbar { flex-direction: column; gap: 0.25rem; align-items: flex-start; }
-            .glass-card { padding: 1.5rem; }
+        /* Animations */
+        @keyframes slideDown {
+            from { transform: translateY(-30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes pulseGlow {
+            0% { box-shadow: 0 0 15px rgba(99, 102, 241, 0.4); }
+            100% { box-shadow: 0 0 30px rgba(236, 72, 153, 0.7); }
         }
     </style>
 </head>
 <body>
 
-    <!-- Top Navigation Bar -->
-    <nav class="navbar">
-        <div class="navbar-brand">
-            <i class="fa-solid fa-brain"></i>
-            <span>RetainAI</span>
+    <header class="glass-panel">
+        <div class="brand">
+            <div class="brand-icon">
+                <i class="fa-solid fa-brain"></i>
+            </div>
+            <div class="brand-text">
+                <h1>AI Prediction Suite</h1>
+                <p>Logistic Regression Real-time Analytics</p>
+            </div>
         </div>
-        <div class="navbar-subtitle">Employee Attrition Prediction Model</div>
-    </nav>
+        <button class="theme-toggle" id="themeBtn" onclick="toggleTheme()">
+            <i class="fa-solid fa-moon"></i> Dark Mode
+        </button>
+    </header>
 
-    <!-- Main Container -->
-    <div class="main-container">
-        <div class="glass-card">
-            
-            <!-- Error Banner -->
-            <div id="errorBanner" class="error-banner">
-                <ul id="errorList"></ul>
+    <main class="dashboard-grid">
+        <!-- Input Form Panel -->
+        <section class="glass-panel" style="padding: 2rem;">
+            <div class="section-header">
+                <i class="fa-solid fa-sliders" style="color: #818cf8;"></i>
+                <span>Model Parameters</span>
             </div>
 
-            <!-- Input Form -->
-            <form id="predictionForm" onsubmit="handlePrediction(event)">
-                <div class="form-grid">
-                    
-                    <!-- Education -->
-                    <div class="form-group">
-                        <label><i class="fa-solid fa-user-graduate"></i> Education</label>
-                        <select id="education" class="input-control" required>
+            <form id="predictionForm" onsubmit="submitForm(event)">
+                <div class="param-grid">
+                    <div class="input-group">
+                        <label>Education</label>
+                        <select id="Education" required>
                             <option value="Bachelors">Bachelors</option>
                             <option value="Masters">Masters</option>
                             <option value="PHD">PHD</option>
                         </select>
                     </div>
 
-                    <!-- Joining Year -->
-                    <div class="form-group">
-                        <label><i class="fa-solid fa-calendar-days"></i> Joining Year</label>
-                        <input type="number" id="joiningYear" class="input-control" placeholder="e.g. 2018" value="2018" required>
+                    <div class="input-group">
+                        <label>Joining Year</label>
+                        <input type="number" id="JoiningYear" value="2017" min="2000" max="2030" required>
                     </div>
 
-                    <!-- City -->
-                    <div class="form-group">
-                        <label><i class="fa-solid fa-city"></i> City</label>
-                        <select id="city" class="input-control" required>
+                    <div class="input-group">
+                        <label>City</label>
+                        <select id="City" required>
                             <option value="Bangalore">Bangalore</option>
                             <option value="Pune">Pune</option>
                             <option value="New Delhi">New Delhi</option>
                         </select>
                     </div>
 
-                    <!-- Payment Tier -->
-                    <div class="form-group">
-                        <label><i class="fa-solid fa-credit-card"></i> Payment Tier</label>
-                        <select id="paymentTier" class="input-control" required>
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3" selected>3</option>
+                    <div class="input-group">
+                        <label>Payment Tier</label>
+                        <select id="PaymentTier" required>
+                            <option value="1">Tier 1</option>
+                            <option value="2">Tier 2</option>
+                            <option value="3" selected>Tier 3</option>
                         </select>
                     </div>
 
-                    <!-- Age -->
-                    <div class="form-group">
-                        <label><i class="fa-solid fa-cake-candles"></i> Age</label>
-                        <input type="number" id="age" class="input-control" placeholder="18 - 65" value="28" required>
+                    <div class="input-group">
+                        <label>Age</label>
+                        <input type="number" id="Age" value="28" min="18" max="100" required>
                     </div>
 
-                    <!-- Gender -->
-                    <div class="form-group">
-                        <label><i class="fa-solid fa-venus-mars"></i> Gender</label>
-                        <select id="gender" class="input-control" required>
+                    <div class="input-group">
+                        <label>Gender</label>
+                        <select id="Gender" required>
                             <option value="Male">Male</option>
                             <option value="Female">Female</option>
                         </select>
                     </div>
 
-                    <!-- Ever Benched -->
-                    <div class="form-group">
-                        <label><i class="fa-solid fa-pause"></i> Ever Benched</label>
-                        <select id="everBenched" class="input-control" required>
+                    <div class="input-group">
+                        <label>Ever Benched</label>
+                        <select id="EverBenched" required>
                             <option value="No">No</option>
                             <option value="Yes">Yes</option>
                         </select>
                     </div>
 
-                    <!-- Experience In Current Domain -->
-                    <div class="form-group">
-                        <label><i class="fa-solid fa-briefcase"></i> Experience (Years)</label>
-                        <input type="number" id="experience" class="input-control" placeholder="Years" value="5" required>
+                    <div class="input-group">
+                        <label>Domain Exp (Years)</label>
+                        <input type="number" id="ExperienceInCurrentDomain" value="3" min="0" max="30" required>
                     </div>
 
+                    <button type="submit" class="btn-submit">
+                        <i class="fa-solid fa-bolt"></i> Run Prediction
+                    </button>
                 </div>
-
-                <!-- Submit Button -->
-                <button type="submit" id="submitBtn" class="submit-btn">
-                    <span id="btnSpinner" class="spinner"></span>
-                    <span id="btnText"><i class="fa-solid fa-wand-magic-sparkles"></i> Predict Retention</span>
-                </button>
             </form>
+        </section>
 
-            <!-- Result Section -->
-            <div id="resultCard" class="result-card">
-                <div id="resultIcon" class="result-icon"></div>
-                <div id="resultTitle" class="result-title"></div>
+        <!-- Output & Visualizations Panel -->
+        <section class="glass-panel" style="padding: 2rem;">
+            <div class="section-header">
+                <i class="fa-solid fa-chart-pie" style="color: #ec4899;"></i>
+                <span>Analytics Dashboard</span>
             </div>
 
-        </div>
-    </div>
+            <div class="analytics-container">
+                <div class="prediction-badge">
+                    <span style="font-weight: 600; color: var(--text-muted); font-size: 0.9rem;">CURRENT PREDICTION</span>
+                    <h2 id="predictionResult" style="color: #818cf8;">--</h2>
+                </div>
 
-    <!-- Footer -->
-    <footer>
-        Created with Flask + Scikit-learn
-    </footer>
+                <div class="chart-card">
+                    <canvas id="probabilityChart"></canvas>
+                </div>
+            </div>
+        </section>
+    </main>
 
-    <!-- JavaScript Logic -->
     <script>
-        async function handlePrediction(event) {
-            event.preventDefault();
-
-            // Clear previous errors and results
-            const errorBanner = document.getElementById("errorBanner");
-            const errorList = document.getElementById("errorList");
-            const resultCard = document.getElementById("resultCard");
-            const submitBtn = document.getElementById("submitBtn");
-            const btnSpinner = document.getElementById("btnSpinner");
-            const btnText = document.getElementById("btnText");
-
-            errorBanner.style.display = "none";
-            errorList.innerHTML = "";
-            resultCard.style.display = "none";
-
-            // Get Input Values
-            const age = parseInt(document.getElementById("age").value, 10);
-            const experience = parseInt(document.getElementById("experience").value, 10);
-            const joiningYear = parseInt(document.getElementById("joiningYear").value, 10);
-
-            // Client-side Validations
-            let errors = [];
-            if (isNaN(age) || age < 18 || age > 65) {
-                errors.push("Age must be between 18 and 65.");
+        // Dark/Light Theme Switching Logic
+        function toggleTheme() {
+            const html = document.documentElement;
+            const themeBtn = document.getElementById('themeBtn');
+            const isDark = html.getAttribute('data-theme') === 'dark';
+            
+            if (isDark) {
+                html.setAttribute('data-theme', 'light');
+                themeBtn.innerHTML = '<i class="fa-solid fa-sun"></i> Light Mode';
+            } else {
+                html.setAttribute('data-theme', 'dark');
+                themeBtn.innerHTML = '<i class="fa-solid fa-moon"></i> Dark Mode';
             }
-            if (!isNaN(experience) && !isNaN(age) && experience > age) {
-                errors.push("Experience in current domain cannot exceed Age.");
-            }
-            if (isNaN(joiningYear) || joiningYear < 2010 || joiningYear > 2035) {
-                errors.push("Joining Year must be between 2010 and 2035.");
-            }
+            updateChartTheme();
+        }
 
-            if (errors.length > 0) {
-                errors.forEach(err => {
-                    const li = document.createElement("li");
-                    li.textContent = err;
-                    errorList.appendChild(li);
-                });
-                errorBanner.style.display = "block";
-                return;
-            }
+        // Initialize Dynamic Chart.js Visualization
+        let chart;
+        function initChart() {
+            const ctx = document.getElementById('probabilityChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Class 0 (Negative)', 'Class 1 (Positive)'],
+                    datasets: [{
+                        label: 'Probability Confidence',
+                        data: [0.5, 0.5],
+                        backgroundColor: [
+                            'rgba(236, 72, 153, 0.7)',
+                            'rgba(99, 102, 241, 0.7)'
+                        ],
+                        borderColor: [
+                            '#ec4899',
+                            '#6366f1'
+                        ],
+                        borderWidth: 2,
+                        borderRadius: 10
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        title: {
+                            display: true,
+                            text: 'Model Confidence Output Spectrum',
+                            color: '#94a3b8'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 1.0,
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                        },
+                        x: {
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
 
-            // Payload Payload Preparation
+        function updateChartTheme() {
+            if(!chart) return;
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const color = isDark ? '#94a3b8' : '#64748b';
+            chart.options.plugins.title.color = color;
+            chart.update();
+        }
+
+        // Form Submit Handler
+        async function submitForm(e) {
+            e.preventDefault();
+            
             const payload = {
-                Education: document.getElementById("education").value,
-                JoiningYear: joiningYear,
-                City: document.getElementById("city").value,
-                PaymentTier: parseInt(document.getElementById("paymentTier").value, 10),
-                Age: age,
-                Gender: document.getElementById("gender").value,
-                EverBenched: document.getElementById("everBenched").value,
-                ExperienceInCurrentDomain: experience
+                Education: document.getElementById('Education').value,
+                JoiningYear: parseInt(document.getElementById('JoiningYear').value),
+                City: document.getElementById('City').value,
+                PaymentTier: parseInt(document.getElementById('PaymentTier').value),
+                Age: parseInt(document.getElementById('Age').value),
+                Gender: document.getElementById('Gender').value,
+                EverBenched: document.getElementById('EverBenched').value,
+                ExperienceInCurrentDomain: parseInt(document.getElementById('ExperienceInCurrentDomain').value)
             };
 
-            // UI Loading state
-            btnSpinner.style.display = "inline-block";
-            btnText.textContent = "Analyzing...";
-            submitBtn.disabled = true;
-
             try {
-                // Enforce 1 second minimum loading for UX
-                const [response] = await Promise.all([
-                    fetch("/predict", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(payload)
-                    }),
-                    new Promise(resolve => setTimeout(resolve, 1000))
-                ]);
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.error || "An error occurred during prediction.");
-                }
-
-                // Render Result
-                resultCard.className = "result-card " + (data.prediction === 0 ? "stay" : "leave");
+                const res = await fetch('/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
                 
-                if (data.prediction === 0) {
-                    document.getElementById("resultIcon").innerHTML = '<i class="fa-solid fa-circle-check"></i>';
-                    document.getElementById("resultTitle").textContent = "Employee Will Stay";
+                const data = await res.json();
+                
+                if(data.status === 'success') {
+                    // Update UI elements
+                    document.getElementById('predictionResult').innerText = "Class " + data.prediction;
+                    
+                    // Update Chart Data
+                    chart.data.datasets[0].data = data.probabilities;
+                    chart.update();
                 } else {
-                    document.getElementById("resultIcon").innerHTML = '<i class="fa-solid fa-circle-xmark"></i>';
-                    document.getElementById("resultTitle").textContent = "Employee Will Leave";
+                    alert('Prediction Error: ' + data.error);
                 }
-
-                resultCard.style.display = "block";
-
-            } catch (err) {
-                const li = document.createElement("li");
-                li.textContent = err.message;
-                errorList.appendChild(li);
-                errorBanner.style.display = "block";
-            } finally {
-                // Reset Button State
-                btnSpinner.style.display = "none";
-                btnText.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Predict Retention';
-                submitBtn.disabled = false;
+            } catch(err) {
+                console.error(err);
+                alert('Connection to Flask backend failed!');
             }
         }
+
+        window.onload = () => {
+            initChart();
+        };
     </script>
 </body>
 </html>
 """
 
-# Feature Label Encoding Maps
-EDUCATION_MAP = {"Bachelors": 0, "Masters": 1, "PHD": 2}
-GENDER_MAP = {"Female": 0, "Male": 1}
-BENCHED_MAP = {"No": 0, "Yes": 1}
-CITY_MAP = {"Bangalore": 0, "New Delhi": 1, "Pune": 2}
-
-
-@app.route("/", methods=["GET"])
-def home():
-    """Renders the single page dashboard."""
+@app.route("/")
+def index():
     return render_template_string(HTML_TEMPLATE)
-
 
 @app.route("/predict", methods=["POST"])
 def predict():
-    """API Endpoint to accept form inputs and output predictions."""
-    if model is None:
-        return jsonify({"error": "Model file 'model_.pkl' was not loaded."}), 500
-
     try:
         data = request.get_json()
+        
+        # Convert incoming JSON payload into DataFrame with proper schema
+        df = pd.DataFrame([data])
+        
+        if model is None:
+            return jsonify({
+                "status": "error",
+                "error": "Model file 'model.pkl' was not found on the server."
+            }), 500
 
-        # Extract features
-        education_str = data.get("Education")
-        joining_year = int(data.get("JoiningYear"))
-        city_str = data.get("City")
-        payment_tier = int(data.get("PaymentTier"))
-        age = int(data.get("Age"))
-        gender_str = data.get("Gender")
-        ever_benched_str = data.get("EverBenched")
-        experience = int(data.get("ExperienceInCurrentDomain"))
+        # Execute Prediction
+        prediction = model.predict(df)[0]
+        
+        # Calculate class probabilities (if supported by LogisticRegression)
+        if hasattr(model, "predict_proba"):
+            probabilities = model.predict_proba(df)[0].tolist()
+        else:
+            probabilities = [0.5, 0.5]
 
-        # Backend Validations
-        if not (18 <= age <= 65):
-            return jsonify({"error": "Validation Failed: Age must be between 18 and 65."}), 400
-        if experience > age:
-            return jsonify({"error": "Validation Failed: Experience cannot exceed Age."}), 400
-        if not (2010 <= joining_year <= 2035):
-            return jsonify({"error": "Validation Failed: Joining Year must be between 2010 and 2035."}), 400
-
-        # Encode categorical variables
-        education = EDUCATION_MAP.get(education_str, 0)
-        gender = GENDER_MAP.get(gender_str, 1)
-        ever_benched = BENCHED_MAP.get(ever_benched_str, 0)
-        city = CITY_MAP.get(city_str, 0)
-
-        # Construct feature array maintaining order matching model expectation:
-        # [Education, JoiningYear, City, PaymentTier, Age, Gender, EverBenched, ExperienceInCurrentDomain]
-        features = np.array([[
-            education,
-            joining_year,
-            city,
-            payment_tier,
-            age,
-            gender,
-            ever_benched,
-            experience
-        ]])
-
-        # Execute prediction
-        prediction_result = model.predict(features)[0]
-
-        return jsonify({"prediction": int(prediction_result)}), 200
+        return jsonify({
+            "status": "success",
+            "prediction": int(prediction),
+            "probabilities": probabilities
+        })
 
     except Exception as e:
-        return jsonify({"error": f"An error occurred: {str(e)}"}), 400
-
+        return jsonify({
+            "status": "error",
+            "error": str(e)
+        }), 400
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(debug=True, host="0.0.0.0", port=5000)
