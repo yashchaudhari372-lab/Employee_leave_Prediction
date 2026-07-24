@@ -13,14 +13,14 @@ if os.path.exists(MODEL_PATH):
     with open(MODEL_PATH, "rb") as f:
         model = pickle.load(f)
 
-# HTML/CSS/JS Template string embedded directly for easy single-file deployment
+# HTML/CSS/JS Template string with Attrition Output Section
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ML Analytics & Prediction Dashboard</title>
+    <title>Employee Retention & Attrition Predictor</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -94,11 +94,11 @@ HTML_TEMPLATE = """
         <div class="max-w-7xl mx-auto flex justify-between items-center">
             <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center text-white shadow-lg animate-float">
-                    <i class="fa-solid fa-brain text-xl"></i>
+                    <i class="fa-solid fa-users-gear text-xl"></i>
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold gradient-text tracking-wide">Predictive Analytics Hub</h1>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">Logistic Regression Intelligence Dashboard</p>
+                    <h1 class="text-xl font-bold gradient-text tracking-wide">Employee Attrition Intelligence</h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Logistic Regression Retention Analytics</p>
                 </div>
             </div>
 
@@ -117,14 +117,14 @@ HTML_TEMPLATE = """
         <section class="lg:col-span-5 flex flex-col gap-6">
             <div class="glass p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all border border-slate-200/50 dark:border-slate-800">
                 <div class="flex items-center gap-3 mb-6 pb-3 border-b border-slate-200 dark:border-slate-800">
-                    <i class="fa-solid fa-sliders text-indigo-500 text-lg"></i>
-                    <h2 class="text-lg font-semibold">Input Model Parameters</h2>
+                    <i class="fa-solid fa-user-pen text-indigo-500 text-lg"></i>
+                    <h2 class="text-lg font-semibold">Employee Details</h2>
                 </div>
 
                 <form id="predictionForm" class="space-y-4">
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Education Level</label>
+                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Education</label>
                             <select id="Education" name="Education" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
                                 <option value="0">Bachelors (0)</option>
                                 <option value="1">Masters (1)</option>
@@ -134,13 +134,13 @@ HTML_TEMPLATE = """
 
                         <div>
                             <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Joining Year</label>
-                            <input type="number" id="JoiningYear" name="JoiningYear" value="2018" min="2012" max="2025" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                            <input type="number" id="JoiningYear" name="JoiningYear" value="2018" min="2010" max="2026" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
                         </div>
                     </div>
 
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">City Code</label>
+                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">City</label>
                             <select id="City" name="City" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
                                 <option value="0">Bangalore (0)</option>
                                 <option value="1">Pune (1)</option>
@@ -184,59 +184,64 @@ HTML_TEMPLATE = """
 
                         <div>
                             <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Domain Experience (Yrs)</label>
-                            <input type="number" id="ExperienceInCurrentDomain" name="ExperienceInCurrentDomain" value="3" min="0" max="20" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                            <input type="number" id="ExperienceInCurrentDomain" name="ExperienceInCurrentDomain" value="3" min="0" max="25" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
                         </div>
                     </div>
 
                     <button type="submit" class="w-full mt-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:opacity-90 text-white font-semibold py-3 rounded-xl shadow-lg transition-all duration-300 flex items-center justify-center gap-2 transform active:scale-95 glow-effect">
                         <i class="fa-solid fa-wand-magic-sparkles"></i>
-                        Generate Real-Time Analysis
+                        Predict Retention Status
                     </button>
                 </form>
             </div>
         </section>
 
-        <!-- Right Column: Visual Dashboard Analytics -->
+        <!-- Right Column: Visual Dashboard & Attrition Output Section -->
         <section class="lg:col-span-7 flex flex-col gap-6">
-            <!-- Output Metrics Row -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="glass p-5 rounded-2xl border border-slate-200/50 dark:border-slate-800 flex items-center gap-4">
-                    <div class="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-xl font-bold">
-                        <i class="fa-solid fa-chart-line"></i>
-                    </div>
-                    <div>
-                        <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Model Status</p>
-                        <h3 id="modelStatus" class="text-lg font-bold text-emerald-500">Active & Ready</h3>
-                    </div>
+            
+            <!-- Dynamic Attrition Prediction Result Card -->
+            <div id="resultCard" class="glass p-6 rounded-2xl border border-slate-200/50 dark:border-slate-800 transition-all duration-300">
+                <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 mb-4">
+                    <span class="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Prediction Analysis</span>
+                    <span id="riskBadge" class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                        Awaiting Inputs
+                    </span>
                 </div>
 
-                <div class="glass p-5 rounded-2xl border border-slate-200/50 dark:border-slate-800 flex items-center gap-4">
-                    <div class="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center text-xl font-bold">
-                        <i class="fa-solid fa-bullseye"></i>
+                <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div class="flex items-center gap-4">
+                        <div id="statusIconBg" class="w-16 h-16 rounded-2xl bg-slate-200/50 dark:bg-slate-800/50 text-slate-500 flex items-center justify-center text-3xl shadow-inner transition-all">
+                            <i id="statusIcon" class="fa-solid fa-user-clock"></i>
+                        </div>
+                        <div>
+                            <h2 id="predictionText" class="text-2xl font-bold">Will Employee Stay or Leave?</h2>
+                            <p id="predictionSubtext" class="text-xs text-slate-500 dark:text-slate-400 mt-1">Submit employee details to compute retention likelihood.</p>
+                        </div>
                     </div>
-                    <div>
-                        <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Predicted Result</p>
-                        <h3 id="predictedClass" class="text-lg font-bold text-indigo-500">Awaiting Input...</h3>
+
+                    <div class="flex flex-col items-center md:items-end border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-800 pt-4 md:pt-0 md:pl-6 w-full md:w-auto">
+                        <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Confidence Score</span>
+                        <span id="confidenceValue" class="text-3xl font-extrabold gradient-text">--%</span>
                     </div>
                 </div>
             </div>
 
             <!-- Charts Container Grid -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Probability Doughnut Gauge -->
+                <!-- Retention vs Attrition Probability Chart -->
                 <div class="glass p-5 rounded-2xl border border-slate-200/50 dark:border-slate-800 flex flex-col justify-between">
                     <h3 class="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2 flex items-center gap-2">
-                        <i class="fa-solid fa-pie-chart text-pink-500"></i> Probability Breakdown
+                        <i class="fa-solid fa-chart-pie text-pink-500"></i> Probability Breakdown
                     </h3>
                     <div class="relative h-48 w-full flex items-center justify-center">
                         <canvas id="probabilityChart"></canvas>
                     </div>
                 </div>
 
-                <!-- Feature Weight Analysis Bar Chart -->
+                <!-- Input Parameters Overview Bar Chart -->
                 <div class="glass p-5 rounded-2xl border border-slate-200/50 dark:border-slate-800 flex flex-col justify-between">
                     <h3 class="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2 flex items-center gap-2">
-                        <i class="fa-solid fa-sliders text-indigo-500"></i> Feature Magnitude
+                        <i class="fa-solid fa-chart-simple text-indigo-500"></i> Parameter Values
                     </h3>
                     <div class="relative h-48 w-full">
                         <canvas id="featureChart"></canvas>
@@ -266,10 +271,10 @@ HTML_TEMPLATE = """
             probChart = new Chart(ctxProb, {
                 type: 'doughnut',
                 data: {
-                    labels: ['Class 0', 'Class 1'],
+                    labels: ['Will Stay', 'Will Leave'],
                     datasets: [{
                         data: [0.5, 0.5],
-                        backgroundColor: ['#6366f1', '#ec4899'],
+                        backgroundColor: ['#10b981', '#f43f5e'],
                         borderWidth: 0,
                     }]
                 },
@@ -289,7 +294,7 @@ HTML_TEMPLATE = """
                 data: {
                     labels: ['Edu', 'Year', 'City', 'Tier', 'Age', 'Gender', 'Bench', 'Exp'],
                     datasets: [{
-                        label: 'Input Value',
+                        label: 'Value',
                         data: [0, 2018, 0, 3, 28, 0, 0, 3],
                         backgroundColor: '#8b5cf6',
                         borderRadius: 6
@@ -331,15 +336,51 @@ HTML_TEMPLATE = """
             try {
                 const response = await fetch('/predict', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'json' },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
                 const res = await response.json();
 
                 if (res.success) {
-                    document.getElementById('predictedClass').innerText = `Class ${res.prediction}`;
+                    const statusIconBg = document.getElementById('statusIconBg');
+                    const statusIcon = document.getElementById('statusIcon');
+                    const predictionText = document.getElementById('predictionText');
+                    const predictionSubtext = document.getElementById('predictionSubtext');
+                    const riskBadge = document.getElementById('riskBadge');
+                    const confidenceValue = document.getElementById('confidenceValue');
+
+                    const stayProb = (res.probabilities[0] * 100).toFixed(1);
+                    const leaveProb = (res.probabilities[1] * 100).toFixed(1);
+
+                    if (res.prediction === 0) {
+                        // Employee WILL STAY
+                        predictionText.innerText = "Employee Will STAY";
+                        predictionText.className = "text-2xl font-bold text-emerald-500 dark:text-emerald-400";
+                        predictionSubtext.innerText = "High retention likelihood based on parameters.";
+                        
+                        statusIconBg.className = "w-16 h-16 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-3xl shadow-inner";
+                        statusIcon.className = "fa-solid fa-user-check";
+
+                        riskBadge.innerText = "Low Risk / Retained";
+                        riskBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20";
+                        
+                        confidenceValue.innerText = `${stayProb}%`;
+                    } else {
+                        // Employee WILL LEAVE
+                        predictionText.innerText = "Employee Will LEAVE";
+                        predictionText.className = "text-2xl font-bold text-rose-500 dark:text-rose-400";
+                        predictionSubtext.innerText = "High attrition risk detected. Consider engagement actions.";
+                        
+                        statusIconBg.className = "w-16 h-16 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center text-3xl shadow-inner";
+                        statusIcon.className = "fa-solid fa-user-xmark";
+
+                        riskBadge.innerText = "High Attrition Risk";
+                        riskBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-500 border border-rose-500/20";
+
+                        confidenceValue.innerText = `${leaveProb}%`;
+                    }
                     
-                    // Update Chart Data
+                    // Update Charts
                     probChart.data.datasets[0].data = res.probabilities;
                     probChart.update();
 
@@ -367,11 +408,11 @@ def home():
 @app.route('/predict', methods=['POST'])
 def predict():
     if model is None:
-        return jsonify({'success': False, 'error': 'Model file not loaded properly on server.'})
+        return jsonify({'success': False, 'error': 'Model file lr_model.pkl not found on server.'})
 
     try:
         data = request.get_json(force=True)
-        # Sequence of variables strictly mapped according to feature_names_in_
+        # Sequence of variables strictly mapped according to model feature names
         feature_order = [
             'Education', 'JoiningYear', 'City', 'PaymentTier',
             'Age', 'Gender', 'EverBenched', 'ExperienceInCurrentDomain'
