@@ -1,581 +1,396 @@
 import os
 import pickle
 import numpy as np
-import pandas as pd
 from flask import Flask, render_template_string, request, jsonify
 
 app = Flask(__name__)
 
-# Model loading logic
-MODEL_PATH = "model.pkl"
+# Load the trained Scikit-Learn Logistic Regression model
+MODEL_PATH = "lr_model.pkl"
+model = None
 
-def load_model():
-    if os.path.exists(MODEL_PATH):
-        with open(MODEL_PATH, "rb") as f:
-            return pickle.load(f)
-    return None
+if os.path.exists(MODEL_PATH):
+    with open(MODEL_PATH, "rb") as f:
+        model = pickle.load(f)
 
-model = load_model()
-
-# Embedded Single-Page Dashboard Template
+# HTML/CSS/JS Template string embedded directly for easy single-file deployment
 HTML_TEMPLATE = """
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Prediction & Analytics Dashboard</title>
-    
-    <!-- Google Fonts & FontAwesome -->
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+    <title>ML Analytics & Prediction Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        }
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'float': 'float 6s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0px)' },
+                            '50%': { transform: 'translateY(-10px)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        :root {
-            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
-            --panel-bg: rgba(30, 41, 59, 0.7);
-            --panel-border: rgba(255, 255, 255, 0.1);
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --input-bg: rgba(15, 23, 42, 0.6);
-            --input-border: rgba(255, 255, 255, 0.15);
-            --accent-glow: rgba(99, 102, 241, 0.35);
-            --card-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
-            --badge-bg: rgba(99, 102, 241, 0.2);
-            --chart-grid: rgba(255, 255, 255, 0.05);
+        .glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
         }
-
-        [data-theme="light"] {
-            --bg-gradient: linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 50%, #f3e8ff 100%);
-            --panel-bg: rgba(255, 255, 255, 0.85);
-            --panel-border: rgba(0, 0, 0, 0.08);
-            --text-main: #0f172a;
-            --text-muted: #64748b;
-            --input-bg: rgba(255, 255, 255, 0.9);
-            --input-border: rgba(0, 0, 0, 0.12);
-            --accent-glow: rgba(99, 102, 241, 0.15);
-            --card-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
-            --badge-bg: rgba(99, 102, 241, 0.1);
-            --chart-grid: rgba(0, 0, 0, 0.05);
+        .dark .glass {
+            background: rgba(17, 24, 39, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
         }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
-            font-family: 'Plus Jakarta Sans', sans-serif;
+        .glow-effect {
+            box-shadow: 0 0 25px -5px rgba(99, 102, 241, 0.4);
         }
-
-        body {
-            background: var(--bg-gradient);
-            background-attachment: fixed;
-            color: var(--text-main);
-            min-height: 100vh;
-            padding: 2rem;
-            overflow-x: hidden;
-        }
-
-        /* Glassmorphism Containers */
-        .glass-panel {
-            background: var(--panel-bg);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid var(--panel-border);
-            border-radius: 24px;
-            box-shadow: var(--card-shadow);
-        }
-
-        /* Animated Header */
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1.5rem 2rem;
-            margin-bottom: 2rem;
-            animation: slideDown 0.8s ease-out;
-        }
-
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .brand-icon {
-            width: 48px;
-            height: 48px;
-            background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899);
-            border-radius: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            color: white;
-            box-shadow: 0 0 20px var(--accent-glow);
-            animation: pulseGlow 3s infinite alternate;
-        }
-
-        .brand-text h1 {
-            font-size: 1.5rem;
-            font-weight: 800;
-            background: linear-gradient(90deg, #818cf8, #c084fc, #f472b6);
+        .gradient-text {
+            background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
-
-        .brand-text p {
-            font-size: 0.85rem;
-            color: var(--text-muted);
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
         }
-
-        /* Theme Toggle */
-        .theme-toggle {
-            background: var(--input-bg);
-            border: 1px solid var(--input-border);
-            color: var(--text-main);
-            padding: 0.6rem 1.2rem;
-            border-radius: 50px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-weight: 600;
-            font-size: 0.9rem;
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
         }
-
-        .theme-toggle:hover {
-            transform: translateY(-2px);
-        }
-
-        /* Main Grid Layout */
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 2rem;
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-
-        @media (max-width: 1024px) {
-            .dashboard-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .section-header {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            margin-bottom: 1.5rem;
-            font-size: 1.2rem;
-            font-weight: 700;
-        }
-
-        /* Colorful Parameter Grid */
-        .param-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 1.25rem;
-        }
-
-        .input-group {
-            position: relative;
-            padding: 1rem;
-            border-radius: 16px;
-            border: 1px solid var(--panel-border);
-            background: rgba(255, 255, 255, 0.02);
-            transition: all 0.3s ease;
-        }
-
-        .input-group:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.2);
-        }
-
-        /* Color accents for parameters */
-        .input-group:nth-child(1) { border-left: 4px solid #3b82f6; }
-        .input-group:nth-child(2) { border-left: 4px solid #10b981; }
-        .input-group:nth-child(3) { border-left: 4px solid #f59e0b; }
-        .input-group:nth-child(4) { border-left: 4px solid #ec4899; }
-        .input-group:nth-child(5) { border-left: 4px solid #8b5cf6; }
-        .input-group:nth-child(6) { border-left: 4px solid #06b6d4; }
-        .input-group:nth-child(7) { border-left: 4px solid #84cc16; }
-        .input-group:nth-child(8) { border-left: 4px solid #f97316; }
-
-        .input-group label {
-            display: block;
-            font-size: 0.8rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-muted);
-            margin-bottom: 0.5rem;
-        }
-
-        .input-group input, .input-group select {
-            width: 100%;
-            padding: 0.75rem 1rem;
-            background: var(--input-bg);
-            border: 1px solid var(--input-border);
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.4);
             border-radius: 10px;
-            color: var(--text-main);
-            font-size: 0.95rem;
-            outline: none;
-        }
-
-        .input-group input:focus, .input-group select:focus {
-            border-color: #818cf8;
-            box-shadow: 0 0 0 3px var(--accent-glow);
-        }
-
-        /* Submit Button */
-        .btn-submit {
-            grid-column: span 2;
-            margin-top: 1rem;
-            padding: 1rem;
-            border: none;
-            border-radius: 14px;
-            background: linear-gradient(135deg, #6366f1, #a855f7);
-            color: white;
-            font-weight: 700;
-            font-size: 1rem;
-            cursor: pointer;
-            box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            transition: all 0.3s ease;
-        }
-
-        .btn-submit:hover {
-            opacity: 0.95;
-            transform: translateY(-2px);
-            box-shadow: 0 15px 25px -5px rgba(99, 102, 241, 0.6);
-        }
-
-        /* Analytics Panel */
-        .analytics-container {
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-        }
-
-        .prediction-badge {
-            text-align: center;
-            padding: 1.5rem;
-            border-radius: 16px;
-            background: var(--badge-bg);
-            border: 1px dashed var(--panel-border);
-            animation: fadeIn 0.5s ease-in;
-        }
-
-        .prediction-badge h2 {
-            font-size: 2.2rem;
-            font-weight: 800;
-            margin-top: 0.5rem;
-        }
-
-        .chart-card {
-            position: relative;
-            padding: 1.5rem;
-            border-radius: 16px;
-            background: rgba(0, 0, 0, 0.1);
-            height: 320px;
-        }
-
-        /* Animations */
-        @keyframes slideDown {
-            from { transform: translateY(-30px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
-        }
-
-        @keyframes pulseGlow {
-            0% { box-shadow: 0 0 15px rgba(99, 102, 241, 0.4); }
-            100% { box-shadow: 0 0 30px rgba(236, 72, 153, 0.7); }
         }
     </style>
 </head>
-<body>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-300 min-h-screen custom-scrollbar font-sans">
 
-    <header class="glass-panel">
-        <div class="brand">
-            <div class="brand-icon">
-                <i class="fa-solid fa-brain"></i>
+    <!-- Top Navigation Header -->
+    <header class="sticky top-0 z-50 glass border-b border-slate-200 dark:border-slate-800 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center text-white shadow-lg animate-float">
+                    <i class="fa-solid fa-brain text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold gradient-text tracking-wide">Predictive Analytics Hub</h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Logistic Regression Intelligence Dashboard</p>
+                </div>
             </div>
-            <div class="brand-text">
-                <h1>AI Prediction Suite</h1>
-                <p>Logistic Regression Real-time Analytics</p>
+
+            <div class="flex items-center gap-4">
+                <!-- Dark Mode Toggle Button -->
+                <button id="themeToggle" class="p-2.5 rounded-xl bg-slate-200/80 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 transition-all duration-200 text-slate-700 dark:text-amber-400 shadow-sm">
+                    <i id="themeIcon" class="fa-solid fa-moon text-lg"></i>
+                </button>
             </div>
         </div>
-        <button class="theme-toggle" id="themeBtn" onclick="toggleTheme()">
-            <i class="fa-solid fa-moon"></i> Dark Mode
-        </button>
     </header>
 
-    <main class="dashboard-grid">
-        <!-- Input Form Panel -->
-        <section class="glass-panel" style="padding: 2rem;">
-            <div class="section-header">
-                <i class="fa-solid fa-sliders" style="color: #818cf8;"></i>
-                <span>Model Parameters</span>
-            </div>
-
-            <form id="predictionForm" onsubmit="submitForm(event)">
-                <div class="param-grid">
-                    <div class="input-group">
-                        <label>Education</label>
-                        <select id="Education" required>
-                            <option value="Bachelors">Bachelors</option>
-                            <option value="Masters">Masters</option>
-                            <option value="PHD">PHD</option>
-                        </select>
-                    </div>
-
-                    <div class="input-group">
-                        <label>Joining Year</label>
-                        <input type="number" id="JoiningYear" value="2017" min="2000" max="2030" required>
-                    </div>
-
-                    <div class="input-group">
-                        <label>City</label>
-                        <select id="City" required>
-                            <option value="Bangalore">Bangalore</option>
-                            <option value="Pune">Pune</option>
-                            <option value="New Delhi">New Delhi</option>
-                        </select>
-                    </div>
-
-                    <div class="input-group">
-                        <label>Payment Tier</label>
-                        <select id="PaymentTier" required>
-                            <option value="1">Tier 1</option>
-                            <option value="2">Tier 2</option>
-                            <option value="3" selected>Tier 3</option>
-                        </select>
-                    </div>
-
-                    <div class="input-group">
-                        <label>Age</label>
-                        <input type="number" id="Age" value="28" min="18" max="100" required>
-                    </div>
-
-                    <div class="input-group">
-                        <label>Gender</label>
-                        <select id="Gender" required>
-                            <option value="Male">Male</option>
-                            <option value="Female">Female</option>
-                        </select>
-                    </div>
-
-                    <div class="input-group">
-                        <label>Ever Benched</label>
-                        <select id="EverBenched" required>
-                            <option value="No">No</option>
-                            <option value="Yes">Yes</option>
-                        </select>
-                    </div>
-
-                    <div class="input-group">
-                        <label>Domain Exp (Years)</label>
-                        <input type="number" id="ExperienceInCurrentDomain" value="3" min="0" max="30" required>
-                    </div>
-
-                    <button type="submit" class="btn-submit">
-                        <i class="fa-solid fa-bolt"></i> Run Prediction
-                    </button>
+    <main class="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- Left Column: Interactive Feature Form -->
+        <section class="lg:col-span-5 flex flex-col gap-6">
+            <div class="glass p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all border border-slate-200/50 dark:border-slate-800">
+                <div class="flex items-center gap-3 mb-6 pb-3 border-b border-slate-200 dark:border-slate-800">
+                    <i class="fa-solid fa-sliders text-indigo-500 text-lg"></i>
+                    <h2 class="text-lg font-semibold">Input Model Parameters</h2>
                 </div>
-            </form>
+
+                <form id="predictionForm" class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Education Level</label>
+                            <select id="Education" name="Education" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                                <option value="0">Bachelors (0)</option>
+                                <option value="1">Masters (1)</option>
+                                <option value="2">PHD (2)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Joining Year</label>
+                            <input type="number" id="JoiningYear" name="JoiningYear" value="2018" min="2012" max="2025" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">City Code</label>
+                            <select id="City" name="City" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                                <option value="0">Bangalore (0)</option>
+                                <option value="1">Pune (1)</option>
+                                <option value="2">New Delhi (2)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Payment Tier</label>
+                            <select id="PaymentTier" name="PaymentTier" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                                <option value="1">Tier 1</option>
+                                <option value="2">Tier 2</option>
+                                <option value="3" selected>Tier 3</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Age</label>
+                            <input type="number" id="Age" name="Age" value="28" min="18" max="70" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Gender</label>
+                            <select id="Gender" name="Gender" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                                <option value="0">Male (0)</option>
+                                <option value="1">Female (1)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Ever Benched</label>
+                            <select id="EverBenched" name="EverBenched" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                                <option value="0">No (0)</option>
+                                <option value="1">Yes (1)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Domain Experience (Yrs)</label>
+                            <input type="number" id="ExperienceInCurrentDomain" name="ExperienceInCurrentDomain" value="3" min="0" max="20" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full mt-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:opacity-90 text-white font-semibold py-3 rounded-xl shadow-lg transition-all duration-300 flex items-center justify-center gap-2 transform active:scale-95 glow-effect">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        Generate Real-Time Analysis
+                    </button>
+                </form>
+            </div>
         </section>
 
-        <!-- Output & Visualizations Panel -->
-        <section class="glass-panel" style="padding: 2rem;">
-            <div class="section-header">
-                <i class="fa-solid fa-chart-pie" style="color: #ec4899;"></i>
-                <span>Analytics Dashboard</span>
-            </div>
-
-            <div class="analytics-container">
-                <div class="prediction-badge">
-                    <span style="font-weight: 600; color: var(--text-muted); font-size: 0.9rem;">CURRENT PREDICTION</span>
-                    <h2 id="predictionResult" style="color: #818cf8;">--</h2>
+        <!-- Right Column: Visual Dashboard Analytics -->
+        <section class="lg:col-span-7 flex flex-col gap-6">
+            <!-- Output Metrics Row -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="glass p-5 rounded-2xl border border-slate-200/50 dark:border-slate-800 flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-xl font-bold">
+                        <i class="fa-solid fa-chart-line"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Model Status</p>
+                        <h3 id="modelStatus" class="text-lg font-bold text-emerald-500">Active & Ready</h3>
+                    </div>
                 </div>
 
-                <div class="chart-card">
-                    <canvas id="probabilityChart"></canvas>
+                <div class="glass p-5 rounded-2xl border border-slate-200/50 dark:border-slate-800 flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center text-xl font-bold">
+                        <i class="fa-solid fa-bullseye"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Predicted Result</p>
+                        <h3 id="predictedClass" class="text-lg font-bold text-indigo-500">Awaiting Input...</h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Container Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Probability Doughnut Gauge -->
+                <div class="glass p-5 rounded-2xl border border-slate-200/50 dark:border-slate-800 flex flex-col justify-between">
+                    <h3 class="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2 flex items-center gap-2">
+                        <i class="fa-solid fa-pie-chart text-pink-500"></i> Probability Breakdown
+                    </h3>
+                    <div class="relative h-48 w-full flex items-center justify-center">
+                        <canvas id="probabilityChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Feature Weight Analysis Bar Chart -->
+                <div class="glass p-5 rounded-2xl border border-slate-200/50 dark:border-slate-800 flex flex-col justify-between">
+                    <h3 class="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2 flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-indigo-500"></i> Feature Magnitude
+                    </h3>
+                    <div class="relative h-48 w-full">
+                        <canvas id="featureChart"></canvas>
+                    </div>
                 </div>
             </div>
         </section>
     </main>
 
+    <!-- Client Scripting -->
     <script>
-        // Dark/Light Theme Switching Logic
-        function toggleTheme() {
-            const html = document.documentElement;
-            const themeBtn = document.getElementById('themeBtn');
-            const isDark = html.getAttribute('data-theme') === 'dark';
-            
-            if (isDark) {
-                html.setAttribute('data-theme', 'light');
-                themeBtn.innerHTML = '<i class="fa-solid fa-sun"></i> Light Mode';
-            } else {
-                html.setAttribute('data-theme', 'dark');
-                themeBtn.innerHTML = '<i class="fa-solid fa-moon"></i> Dark Mode';
-            }
-            updateChartTheme();
-        }
+        // Dark Mode Logic
+        const themeToggleBtn = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        
+        themeToggleBtn.addEventListener('click', () => {
+            const isDark = document.documentElement.classList.toggle('dark');
+            themeIcon.className = isDark ? 'fa-solid fa-moon text-lg' : 'fa-solid fa-sun text-lg text-amber-500';
+            updateChartThemes(isDark);
+        });
 
-        // Initialize Dynamic Chart.js Visualization
-        let chart;
-        function initChart() {
-            const ctx = document.getElementById('probabilityChart').getContext('2d');
-            chart = new Chart(ctx, {
-                type: 'bar',
+        // Chart.js Instances
+        let probChart, featChart;
+
+        function initCharts() {
+            const ctxProb = document.getElementById('probabilityChart').getContext('2d');
+            probChart = new Chart(ctxProb, {
+                type: 'doughnut',
                 data: {
-                    labels: ['Class 0 (Negative)', 'Class 1 (Positive)'],
+                    labels: ['Class 0', 'Class 1'],
                     datasets: [{
-                        label: 'Probability Confidence',
                         data: [0.5, 0.5],
-                        backgroundColor: [
-                            'rgba(236, 72, 153, 0.7)',
-                            'rgba(99, 102, 241, 0.7)'
-                        ],
-                        borderColor: [
-                            '#ec4899',
-                            '#6366f1'
-                        ],
-                        borderWidth: 2,
-                        borderRadius: 10
+                        backgroundColor: ['#6366f1', '#ec4899'],
+                        borderWidth: 0,
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { display: false },
-                        title: {
-                            display: true,
-                            text: 'Model Confidence Output Spectrum',
-                            color: '#94a3b8'
-                        }
+                        legend: { position: 'bottom', labels: { color: '#94a3b8' } }
                     },
+                    cutout: '70%'
+                }
+            });
+
+            const ctxFeat = document.getElementById('featureChart').getContext('2d');
+            featChart = new Chart(ctxFeat, {
+                type: 'bar',
+                data: {
+                    labels: ['Edu', 'Year', 'City', 'Tier', 'Age', 'Gender', 'Bench', 'Exp'],
+                    datasets: [{
+                        label: 'Input Value',
+                        data: [0, 2018, 0, 3, 28, 0, 0, 3],
+                        backgroundColor: '#8b5cf6',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 1.0,
-                            grid: { color: 'rgba(255, 255, 255, 0.05)' }
-                        },
-                        x: {
-                            grid: { display: false }
-                        }
-                    }
+                        x: { ticks: { color: '#94a3b8' }, grid: { display: false } },
+                        y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.1)' } }
+                    },
+                    plugins: { legend: { display: false } }
                 }
             });
         }
 
-        function updateChartTheme() {
-            if(!chart) return;
-            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-            const color = isDark ? '#94a3b8' : '#64748b';
-            chart.options.plugins.title.color = color;
-            chart.update();
-        }
-
-        // Form Submit Handler
-        async function submitForm(e) {
-            e.preventDefault();
-            
-            const payload = {
-                Education: document.getElementById('Education').value,
-                JoiningYear: parseInt(document.getElementById('JoiningYear').value),
-                City: document.getElementById('City').value,
-                PaymentTier: parseInt(document.getElementById('PaymentTier').value),
-                Age: parseInt(document.getElementById('Age').value),
-                Gender: document.getElementById('Gender').value,
-                EverBenched: document.getElementById('EverBenched').value,
-                ExperienceInCurrentDomain: parseInt(document.getElementById('ExperienceInCurrentDomain').value)
-            };
-
-            try {
-                const res = await fetch('/predict', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                
-                const data = await res.json();
-                
-                if(data.status === 'success') {
-                    // Update UI elements
-                    document.getElementById('predictionResult').innerText = "Class " + data.prediction;
-                    
-                    // Update Chart Data
-                    chart.data.datasets[0].data = data.probabilities;
-                    chart.update();
-                } else {
-                    alert('Prediction Error: ' + data.error);
-                }
-            } catch(err) {
-                console.error(err);
-                alert('Connection to Flask backend failed!');
+        function updateChartThemes(isDark) {
+            const textColor = isDark ? '#94a3b8' : '#475569';
+            if(probChart) {
+                probChart.options.plugins.legend.labels.color = textColor;
+                probChart.update();
+            }
+            if(featChart) {
+                featChart.options.scales.x.ticks.color = textColor;
+                featChart.options.scales.y.ticks.color = textColor;
+                featChart.update();
             }
         }
 
-        window.onload = () => {
-            initChart();
-        };
+        // Form Submit Handler
+        document.getElementById('predictionForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const data = {};
+            formData.forEach((val, key) => data[key] = parseFloat(val));
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'json' },
+                    body: JSON.stringify(data)
+                });
+                const res = await response.json();
+
+                if (res.success) {
+                    document.getElementById('predictedClass').innerText = `Class ${res.prediction}`;
+                    
+                    // Update Chart Data
+                    probChart.data.datasets[0].data = res.probabilities;
+                    probChart.update();
+
+                    featChart.data.datasets[0].data = Object.values(data);
+                    featChart.update();
+                } else {
+                    alert('Prediction Error: ' + res.error);
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        });
+
+        // Initialize on DOM Ready
+        window.addEventListener('DOMContentLoaded', initCharts);
     </script>
 </body>
 </html>
 """
 
-@app.route("/")
-def index():
+@app.route('/')
+def home():
     return render_template_string(HTML_TEMPLATE)
 
-@app.route("/predict", methods=["POST"])
+@app.route('/predict', methods=['POST'])
 def predict():
+    if model is None:
+        return jsonify({'success': False, 'error': 'Model file not loaded properly on server.'})
+
     try:
-        data = request.get_json()
+        data = request.get_json(force=True)
+        # Sequence of variables strictly mapped according to feature_names_in_
+        feature_order = [
+            'Education', 'JoiningYear', 'City', 'PaymentTier',
+            'Age', 'Gender', 'EverBenched', 'ExperienceInCurrentDomain'
+        ]
         
-        # Convert incoming JSON payload into DataFrame with proper schema
-        df = pd.DataFrame([data])
-        
-        if model is None:
-            return jsonify({
-                "status": "error",
-                "error": "Model file 'model.pkl' was not found on the server."
-            }), 500
+        input_features = [float(data.get(feat, 0)) for feat in feature_order]
+        features_array = np.array([input_features])
 
-        # Execute Prediction
-        prediction = model.predict(df)[0]
-        
-        # Calculate class probabilities (if supported by LogisticRegression)
-        if hasattr(model, "predict_proba"):
-            probabilities = model.predict_proba(df)[0].tolist()
-        else:
-            probabilities = [0.5, 0.5]
+        prediction = int(model.predict(features_array)[0])
+        probabilities = model.predict_proba(features_array)[0].tolist()
 
         return jsonify({
-            "status": "success",
-            "prediction": int(prediction),
-            "probabilities": probabilities
+            'success': True,
+            'prediction': prediction,
+            'probabilities': probabilities
         })
-
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "error": str(e)
-        }), 400
+        return jsonify({'success': False, 'error': str(e)})
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
